@@ -63,10 +63,12 @@ public class NominaService {
                    + "(Id_Departamento, Nombre, Cedula, Cargo, "
                    + "Salario_Base, Horas_Extras, Bonos, Seguro) "
                    + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-
+//modificado
         try (Connection con = ConexionBD.conectar();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-
+     PreparedStatement ps = con.prepareStatement(
+         sql, java.sql.Statement.RETURN_GENERATED_KEYS)) { 
+                        con.setAutoCommit(false);
+//hasta aqui
             ps.setInt(1, ID_DEPARTAMENTO);
             ps.setString(2, emp.getNombre());
             ps.setString(3, emp.getCedula());
@@ -77,14 +79,46 @@ public class NominaService {
                 java.math.BigDecimal.valueOf(emp.getHorasExtras()));
             ps.setBigDecimal(7,
                 java.math.BigDecimal.valueOf(emp.getBonos()));
-
-            Nomina nomina = new Nomina(emp);
+//modificado
             ps.setBigDecimal(8,
-                java.math.BigDecimal.valueOf(nomina.calcularDeducciones()));
-
+    emp.isSeguro()
+        ? java.math.BigDecimal.ONE
+        : java.math.BigDecimal.ZERO);
+//hasta aqui
+//modificado
             ps.executeUpdate();
-            empleados.add(emp);
 
+int idEmpleado;
+
+try (ResultSet rs = ps.getGeneratedKeys()) {
+    if (rs.next()) {
+        idEmpleado = rs.getInt(1);
+    } else {
+        throw new SQLException("No se pudo obtener el ID del empleado.");
+    }
+}
+//hasta aqui
+//modificado
+Nomina nomina = new Nomina(emp);
+
+String sqlNomina = "INSERT INTO Detalle_Nomina "
+        + "(Id_Empleado, Nombre_Empleado, Pago_hora_extras, "
+        + "Salario_Bruto, Deduciones, Salario_neto) "
+        + "VALUES (?, ?, ?, ?, ?, ?)";
+
+try (PreparedStatement psNomina = con.prepareStatement(sqlNomina)) {
+    psNomina.setInt(1, idEmpleado);
+    psNomina.setString(2, emp.getNombre());
+    psNomina.setBigDecimal(3, java.math.BigDecimal.valueOf(nomina.calcularPagoHorasExtras()));
+    psNomina.setBigDecimal(4, java.math.BigDecimal.valueOf(nomina.calcularSalarioBruto()));
+    psNomina.setBigDecimal(5, java.math.BigDecimal.valueOf(nomina.calcularDeducciones()));
+    psNomina.setBigDecimal(6, java.math.BigDecimal.valueOf(nomina.calcularSalarioNeto()));
+
+    psNomina.executeUpdate();
+    con.commit();
+    empleados.add(emp);
+} 
+//hasta aqui
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(
                 null,
