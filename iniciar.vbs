@@ -1,0 +1,2 @@
+Set WshShell = CreateObject("WScript.Shell")
+WshShell.Run "cmd.exe /c cd /d """ & CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName) & "\src"" && java -cp " & Chr(34) & ".;lib\mssql-jdbc-13.6.0.jre11.jar" & Chr(34) & " Main", 0, False
