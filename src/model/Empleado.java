@@ -8,14 +8,14 @@ public class Empleado {
     private double horasExtras;
     private double bonos;
     private boolean seguro;
-    private Departamento departamento; // Nuevo atributo
+    private Relaciones relaciones; // Nuevo atributo
 
     public Empleado() {
-        // Departamento por defecto
-        this.departamento = new Departamento(1, "Administración");
+        // Relaciones por defecto
+        this.relaciones = new Relaciones(1, "Administración");
     }
 
-    public Empleado(String nombre, String cedula, String cargo, double salarioBase, double horasExtras, double bonos, boolean seguro, Departamento departamento) {
+    public Empleado(String nombre, String cedula, String cargo, double salarioBase, double horasExtras, double bonos, boolean seguro, Relaciones relaciones) {
         this.nombre = nombre;
         this.cedula = cedula;
         this.cargo = cargo;
@@ -23,12 +23,12 @@ public class Empleado {
         this.horasExtras = horasExtras;
         this.bonos = bonos;
         this.seguro = seguro;
-        this.departamento = departamento != null ? departamento : new Departamento(1, "Administración");
+        this.relaciones = relaciones != null ? relaciones : new Relaciones(1, "Administración");
     }
 
-    // Constructor de compatibilidad (asigna departamento por defecto ID 1)
+    // Constructor de compatibilidad (asigna relaciones por defecto ID 1)
     public Empleado(String nombre, String cedula, String cargo, double salarioBase, double horasExtras, double bonos, boolean seguro) {
-        this(nombre, cedula, cargo, salarioBase, horasExtras, bonos, seguro, new Departamento(1, "Administración"));
+        this(nombre, cedula, cargo, salarioBase, horasExtras, bonos, seguro, new Relaciones(1, "Administración"));
     }
 
     // Getters y Setters
@@ -53,10 +53,10 @@ public class Empleado {
     public boolean isSeguro() { return seguro; }
     public void setSeguro(boolean seguro) { this.seguro = seguro; }
 
-    public Departamento getDepartamento() { return departamento; }
-    public void setDepartamento(Departamento departamento) { this.departamento = departamento; }
+    public Relaciones getRelaciones() { return relaciones; }
+    public void setRelaciones(Relaciones relaciones) { this.relaciones = relaciones; }
 
     public String aTextoCSV() {
-        return String.join(";", nombre, cedula, cargo, String.valueOf(salarioBase), String.valueOf(horasExtras), String.valueOf(bonos), String.valueOf(seguro), departamento.getNombre());
+        return String.join(";", nombre, cedula, cargo, String.valueOf(salarioBase), String.valueOf(horasExtras), String.valueOf(bonos), String.valueOf(seguro), relaciones.getNombre());
     }
 }
