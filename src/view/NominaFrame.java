@@ -36,7 +36,27 @@ public class NominaFrame extends JFrame {
         setMinimumSize(new Dimension(800, 450));
         setSize(1280, 720);
         setLocationRelativeTo(null);
-        setVisible(true);
+        setVisible(true); // La ventana se muestra al instante
+
+        // CARGA ASÍNCRONA: Conecta con Azure SQL en segundo plano sin congelar la UI
+        cargarEmpleadosEnSegundoPlano();
+    }
+
+    private void cargarEmpleadosEnSegundoPlano() {
+        javax.swing.SwingWorker<Void, Void> worker = new javax.swing.SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                // Ejecuta la consulta pesada a Azure SQL en un hilo secundario
+                nominaService.cargarDesdeBaseDatos();
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                // Acciones al finalizar la carga en segundo plano si se requiere
+            }
+        };
+        worker.execute();
     }
 
     // ---------- Utilidades de dibujo y texto exactas de NominaLaskt ----------
@@ -87,7 +107,7 @@ public class NominaFrame extends JFrame {
     }
     private Fld fld(double x, double y, double w, double h, boolean pill, String ph) { Fld f = new Fld(pill, ph); put(f, x, y, w, h); return f; }
 
- // ---------- Dibujo Vectorial del Menú Lateral (Original de NominaLaskt) ----------
+    // ---------- Dibujo Vectorial del Menú Lateral (Original de NominaLaskt) ----------
     private void drawIcons(Graphics2D g) {
         g.setColor(BK);
         
@@ -138,7 +158,7 @@ public class NominaFrame extends JFrame {
             }
         }
         g.draw(rr(62, 643, 42, 14, 14)); 
-        
+
         // Ícono Empleados
         g.setColor(BK); 
         g.fill(o(83, 741, 23));
@@ -160,7 +180,6 @@ public class NominaFrame extends JFrame {
 
     // ---------- Construcción de la Interfaz Visual (1920x1080) ----------
     private JPanel buildCustomUI() {
-        // Inicializamos 'root' de una vez para garantizar que no sea nulo al registrar componentes
         root = new JPanel(null) {
             public void doLayout() {
                 S = Math.min(getWidth() / 1920.0, getHeight() / 1080.0); ox = (getWidth() - 1920 * S) / 2; oy = (getHeight() - 1080 * S) / 2;
@@ -203,7 +222,7 @@ public class NominaFrame extends JFrame {
                 for (double bx : new double[]{1266, 1592}) { g.setColor(Color.WHITE); g.fill(rr(bx, 157, 270, 84, 84)); g.setColor(GR); g.setStroke(new BasicStroke(2f)); g.draw(rr(bx, 157, 270, 84, 84)); }
                 t(g, "Iniciar", 1401, 200, 30, BK, true); t(g, "Registrar", 1727, 200, 30, BK, true);
                 
-                // Tarjetas de Extras (Horas extra, Bonos, Seguro) EXACTAS DE NOMINALASKT
+                // Tarjetas de Extras (Horas extra, Bonos, Seguro)
                 String[] ct = {"Horas extras", "Bonos", "Seguro"}; 
                 double[] cx = {441, 931, 1421}, tc = {658, 1143, 1656};
                 for (int i = 0; i < 3; i++) {
@@ -233,24 +252,19 @@ public class NominaFrame extends JFrame {
                     t(g, et[i], i == 3 ? 498 : 501, y + 51, 48, BK, false); 
                 }
 
-                // Íconos vectoriales del menú y cabecera
                 drawIcons(g);
-
                 g.dispose();
             }
         };
 
-        // Instanciación de campos de texto en píldora
         fN = fld(748, 588, 1035, 71, true, null); 
         fC = fld(753, 714, 1035, 72, true, null); 
         fG = fld(749, 835, 1035, 72, true, null); 
         fS = fld(753, 961, 1035, 72, true, null); 
         fB = fld(1388, 36, 256, 48, false, "Buscar");
 
-        // Formato automático de cédula
         ((AbstractDocument) fC.getDocument()).setDocumentFilter(new Validaciones.CedulaDocumentFilter());
 
-        // Selector de cargos emergente
         String[] cargos = {"Gerente", "Contador", "Supervisor", "Secretaria", "Vendedor", "Técnico", "Cajero", "Conserje", "Chofer", "Seguridad", "Otro..."}; 
         fG.setEditable(false); 
         fG.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -274,7 +288,6 @@ public class NominaFrame extends JFrame {
 
         LocalDate hoy = LocalDate.now(), pago = hoy.getDayOfMonth() <= 15 ? hoy.withDayOfMonth(15) : hoy.withDayOfMonth(hoy.lengthOfMonth());
         
-        // Acciones de los botones superiores
         hot(495, 30, 270, 62, () -> msg("Administración", "Empleados: " + nominaService.getEmpleados().size() + "\nTotal neto: RD$ " + String.format(Locale.US, "%,.2f", nominaService.calcularTotalNominaGeneral())));
         hot(826, 30, 200, 62, () -> msg("Calendario", "Hoy: " + hoy + "\nPróximo pago: " + pago));
         hot(1073, 30, 150, 62, () -> msg("Soporte", "Teléfono: +1 (809) 555-0100\nCorreo: soporte@laskt.com"));
@@ -285,12 +298,10 @@ public class NominaFrame extends JFrame {
         hot(1266, 157, 270, 84, this::iniciarSesion); 
         hot(1592, 157, 270, 84, this::registrar);
 
-        // Bloques interactivos de extras
         hot(441, 283, 450, 259, () -> { double v = num("Horas extra trabajadas:"); if (v >= 0) { horas = v; msg("Horas extra", v + " hora(s) aplicadas al próximo registro."); } });
         hot(931, 283, 450, 259, () -> { double v = num("Monto del bono (RD$):"); if (v >= 0) { bonos = v; msg("Bonos", "RD$ " + v + " aplicados al próximo registro."); } });
         hot(1421, 283, 450, 259, () -> seguro = JOptionPane.showConfirmDialog(root, "¿Aplicar seguro (SFS 3.04% + AFP 2.87%)?", "Seguro", JOptionPane.YES_NO_OPTION) == 0);
 
-        // Menú lateral
         Runnable[] acc = {
             this::limpiar,
             () -> msg("Nosotros", "LASKT - Sistema de Nómina UASD.\nEmpleados registrados: " + nominaService.getEmpleados().size()),
@@ -304,7 +315,6 @@ public class NominaFrame extends JFrame {
         return root;
     }
 
-    // ---------- Acciones del Negocio conectadas al Service ----------
     private void limpiar() { 
         for (JTextField f : new JTextField[]{fN, fC, fG, fS}) f.setText(""); 
         horas = bonos = 0; seguro = true; fN.requestFocusInWindow(); 
