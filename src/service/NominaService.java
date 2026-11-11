@@ -1,5 +1,6 @@
 package service;
 
+import model.Departamento;
 import model.Empleado;
 import model.Nomina;
 import utils.ConexionBD;
@@ -15,50 +16,67 @@ import javax.swing.JOptionPane;
 
 public class NominaService {
 
-    private static final int ID_DEPARTAMENTO = 1;
-
     private final List<Empleado> empleados = new ArrayList<>();
 
     public NominaService() {
-        cargarDesdeBaseDatos();
+        // La carga automática desde la base de datos se ha removido del constructor 
+        // para evitar bloqueos iniciales por el arranque en frío de Azure SQL[cite: 11].
     }
 
-    private void cargarDesdeBaseDatos() {
+    // Convertido a público para permitir su ejecución asíncrona mediante SwingWorker
+    public void cargarDesdeBaseDatos() {
         String sql = "SELECT Nombre, Cedula, Cargo, Salario_Base, "
-                   + "Horas_Extras, Bonos, Seguro FROM Empleados";
+                + "Horas_Extras, Bonos, Seguro FROM Empleados";
 
-        try (Connection con = ConexionBD.conectar();
-             PreparedStatement ps = con.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
+        int intentosMaximos = 3;
+        int intento = 0;
+        boolean cargado = false;
 
-            empleados.clear();
+        while (intento < intentosMaximos && !cargado) {
+            try (Connection con = ConexionBD.conectar();
+                 PreparedStatement ps = con.prepareStatement(sql);
+                 ResultSet rs = ps.executeQuery()) {
 
-            while (rs.next()) {
-                Empleado emp = new Empleado(
-                    rs.getString("Nombre"),
-                    rs.getString("Cedula"),
-                    rs.getString("Cargo"),
-                    rs.getDouble("Salario_Base"),
-                    rs.getDouble("Horas_Extras"),
-                    rs.getDouble("Bonos"),
-                    rs.getDouble("Seguro") > 0
-                );
+                empleados.clear();
 
-                empleados.add(emp);
+                while (rs.next()) {
+                    Empleado emp = new Empleado(
+                            rs.getString("Nombre"),
+                            rs.getString("Cedula"),
+                            rs.getString("Cargo"),
+                            rs.getDouble("Salario_Base"),
+                            rs.getDouble("Horas_Extras"),
+                            rs.getDouble("Bonos"),
+                            rs.getDouble("Seguro") > 0
+                    );
+
+                    empleados.add(emp);
+                }
+                cargado = true; // Conexión y carga exitosas
+
+            } catch (SQLException e) {
+                intento++;
+                if (intento >= intentosMaximos) {
+                    // Si se agotan los intentos, muestra el mensaje de error definitivo
+                    JOptionPane.showMessageDialog(
+                            null,
+                            "No se pudieron cargar los empleados desde Azure SQL tras varios intentos.\n"
+                                    + e.getMessage(),
+                            "Error de conexión",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                } else {
+                    // Espera 4 segundos para darle tiempo a que Azure SQL despierte por completo
+                    try {
+                        Thread.sleep(4000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
             }
-
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(
-                null,
-                "No se pudieron cargar los empleados desde Azure SQL.\n"
-                + e.getMessage(),
-                "Error de conexión",
-                JOptionPane.ERROR_MESSAGE
-            );
         }
     }
 
- // Reemplaza la constante estática por el uso directo del objeto Departamento del empleado:
     public void agregarEmpleado(Empleado emp) {
         String sql = "INSERT INTO Empleados "
                 + "(Id_Departamento, Nombre, Cedula, Cargo, "
@@ -70,7 +88,7 @@ public class NominaService {
                      sql, java.sql.Statement.RETURN_GENERATED_KEYS)) { 
             con.setAutoCommit(false);
             
-            // Uso dinámico del ID del Departamento desde el modelo Empleado -> Departamento
+            // Inserción dinámica del ID del Departamento proveniente del modelo Empleado
             int idDepto = (emp.getDepartamento() != null) ? emp.getDepartamento().getId() : 1;
             ps.setInt(1, idDepto);
             
@@ -113,10 +131,11 @@ public class NominaService {
             } 
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(
-                null,
-                "No se pudo registrar el empleado en Azure SQL.\n" + e.getMessage(),
-                "Error al registrar",
-                JOptionPane.ERROR_MESSAGE
+                    null,
+                    "No se pudo registrar el empleado en Azure SQL.\n"
+                            + e.getMessage(),
+                    "Error al registrar",
+                    JOptionPane.ERROR_MESSAGE
             );
         }
     }
@@ -132,17 +151,17 @@ public class NominaService {
 
             if (filasEliminadas > 0) {
                 empleados.removeIf(
-                    e -> Objects.equals(e.getCedula(), cedula)
+                        e -> Objects.equals(e.getCedula(), cedula)
                 );
             }
 
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(
-                null,
-                "No se pudo eliminar el empleado de Azure SQL.\n"
-                + e.getMessage(),
-                "Error al eliminar",
-                JOptionPane.ERROR_MESSAGE
+                    null,
+                    "No se pudo eliminar el empleado de Azure SQL.\n"
+                            + e.getMessage(),
+                    "Error al eliminar",
+                    JOptionPane.ERROR_MESSAGE
             );
         }
     }
@@ -153,12 +172,10 @@ public class NominaService {
 
     public double calcularTotalNominaGeneral() {
         double total = 0;
-
         for (Empleado emp : empleados) {
             Nomina nomina = new Nomina(emp);
             total += nomina.calcularSalarioNeto();
         }
-
         return total;
     }
 }
