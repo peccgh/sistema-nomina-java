@@ -1,6 +1,6 @@
 package service;
 
-import model.Departamento;
+import model.Relaciones;
 import model.Empleado;
 import model.Nomina;
 import utils.ConexionBD;
@@ -88,8 +88,8 @@ public class NominaService {
                      sql, java.sql.Statement.RETURN_GENERATED_KEYS)) { 
             con.setAutoCommit(false);
             
-            // Inserción dinámica del ID del Departamento proveniente del modelo Empleado
-            int idDepto = (emp.getDepartamento() != null) ? emp.getDepartamento().getId() : 1;
+            // Inserción dinámica del ID del Relaciones proveniente del modelo Empleado
+            int idDepto = (emp.getRelaciones() != null) ? emp.getRelaciones().getId() : 1;
             ps.setInt(1, idDepto);
             
             ps.setString(2, emp.getNombre());
