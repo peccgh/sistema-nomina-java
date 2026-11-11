@@ -263,7 +263,7 @@ sistema-nomina-java/
 │   │   └── mssql-jdbc-13.6.0.jre11.jar
 │   │
 │   ├── model/
-│   │   ├── Departamento.java
+│   │   ├── Relaciones.java
 │   │   ├── Empleado.java
 │   │   └── Nomina.java
 │   │
