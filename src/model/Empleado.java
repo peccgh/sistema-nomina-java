@@ -1,6 +1,8 @@
 package model;
 
 public class Empleado {
+
+    // ================= ATRIBUTOS =================
     private String nombre;
     private String cedula;
     private String cargo;
@@ -8,14 +10,15 @@ public class Empleado {
     private double horasExtras;
     private double bonos;
     private boolean seguro;
-    private Relaciones relaciones; // Nuevo atributo
+    private Relaciones relaciones;
 
+    // ================= CONSTRUCTORES =================
     public Empleado() {
-        // Relaciones por defecto
-        this.relaciones = new Relaciones(1, "Administración");
+        this.relaciones = new Relaciones(1, "Administración y Finanzas");
     }
 
-    public Empleado(String nombre, String cedula, String cargo, double salarioBase, double horasExtras, double bonos, boolean seguro, Relaciones relaciones) {
+    public Empleado(String nombre, String cedula, String cargo, double salarioBase,
+                    double horasExtras, double bonos, boolean seguro, Relaciones relaciones) {
         this.nombre = nombre;
         this.cedula = cedula;
         this.cargo = cargo;
@@ -23,40 +26,96 @@ public class Empleado {
         this.horasExtras = horasExtras;
         this.bonos = bonos;
         this.seguro = seguro;
-        this.relaciones = relaciones != null ? relaciones : new Relaciones(1, "Administración");
+        this.relaciones = (relaciones != null) ? relaciones : Relaciones.asignarPorCargo(cargo);
     }
 
-    // Constructor de compatibilidad (asigna relaciones por defecto ID 1)
-    public Empleado(String nombre, String cedula, String cargo, double salarioBase, double horasExtras, double bonos, boolean seguro) {
-        this(nombre, cedula, cargo, salarioBase, horasExtras, bonos, seguro, new Relaciones(1, "Administración"));
+    public Empleado(String nombre, String cedula, String cargo, double salarioBase,
+                    double horasExtras, double bonos, boolean seguro) {
+        this(nombre, cedula, cargo, salarioBase, horasExtras, bonos, seguro,
+             Relaciones.asignarPorCargo(cargo));
     }
 
-    // Getters y Setters
-    public String getNombre() { return nombre; }
-    public void setNombre(String nombre) { this.nombre = nombre; }
+    // ================= GETTERS Y SETTERS =================
+    public String getNombre() {
+        return nombre;
+    }
 
-    public String getCedula() { return cedula; }
-    public void setCedula(String cedula) { this.cedula = cedula; }
+    public void setNombre(String nombre) {
+        this.nombre = nombre;
+    }
 
-    public String getCargo() { return cargo; }
-    public void setCargo(String cargo) { this.cargo = cargo; }
+    public String getCedula() {
+        return cedula;
+    }
 
-    public double getSalarioBase() { return salarioBase; }
-    public void setSalarioBase(double salarioBase) { this.salarioBase = salarioBase; }
+    public void setCedula(String cedula) {
+        this.cedula = cedula;
+    }
 
-    public double getHorasExtras() { return horasExtras; }
-    public void setHorasExtras(double horasExtras) { this.horasExtras = horasExtras; }
+    public String getCargo() {
+        return cargo;
+    }
 
-    public double getBonos() { return bonos; }
-    public void setBonos(double bonos) { this.bonos = bonos; }
+    public void setCargo(String cargo) {
+        this.cargo = cargo;
+        this.relaciones = Relaciones.asignarPorCargo(cargo);
+    }
 
-    public boolean isSeguro() { return seguro; }
-    public void setSeguro(boolean seguro) { this.seguro = seguro; }
+    public double getSalarioBase() {
+        return salarioBase;
+    }
 
-    public Relaciones getRelaciones() { return relaciones; }
-    public void setRelaciones(Relaciones relaciones) { this.relaciones = relaciones; }
+    public void setSalarioBase(double salarioBase) {
+        this.salarioBase = salarioBase;
+    }
 
+    public double getHorasExtras() {
+        return horasExtras;
+    }
+
+    public void setHorasExtras(double horasExtras) {
+        this.horasExtras = horasExtras;
+    }
+
+    public double getBonos() {
+        return bonos;
+    }
+
+    public void setBonos(double bonos) {
+        this.bonos = bonos;
+    }
+
+    public boolean isSeguro() {
+        return seguro;
+    }
+
+    public void setSeguro(boolean seguro) {
+        this.seguro = seguro;
+    }
+
+    public Relaciones getRelaciones() {
+        return relaciones;
+    }
+
+    public void setRelaciones(Relaciones relaciones) {
+        this.relaciones = (relaciones != null) ? relaciones : Relaciones.asignarPorCargo(this.cargo);
+    }
+
+    // ================= UTILIDADES / EXPORTACIÓN =================
     public String aTextoCSV() {
-        return String.join(";", nombre, cedula, cargo, String.valueOf(salarioBase), String.valueOf(horasExtras), String.valueOf(bonos), String.valueOf(seguro), relaciones.getNombre());
+        String nombreDepto = (relaciones != null && relaciones.getNombre() != null)
+                ? relaciones.getNombre()
+                : "General";
+        return String.join(
+                ";",
+                nombre,
+                cedula,
+                cargo,
+                String.valueOf(salarioBase),
+                String.valueOf(horasExtras),
+                String.valueOf(bonos),
+                String.valueOf(seguro),
+                nombreDepto
+        );
     }
 }
