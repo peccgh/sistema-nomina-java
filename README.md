@@ -31,6 +31,7 @@ Su arquitectura modular separa la presentación, los modelos de datos, la lógic
 ### Gestión de empleados
 - Registro de nuevos empleados.
 - Captura de nombre, cédula, cargo y salario base.
+- Asignación automática del departamento (`1` al `5`) a partir del cargo seleccionado.
 - Validación de los campos obligatorios.
 - Prevención de registros duplicados mediante la cédula.
 - Consulta de empleados mediante nombre o número de cédula.
@@ -62,8 +63,8 @@ El sistema procesa los componentes salariales de cada empleado para determinar s
 - Conexión a Azure SQL Database.
 - Integración mediante JDBC.
 - Consultas parametrizadas utilizando `PreparedStatement`.
-- Recuperación de empleados al iniciar la aplicación.
-- Persistencia de registros y eliminación de empleados.
+- Recuperación asíncrona de empleados en segundo plano mediante `SwingWorker` (`cargarDesdeBaseDatos()`), evitando bloqueos iniciales por arranque en frío.
+- Persistencia transaccional en `Empleados` y `Detalle_Nomina`, y eliminación de empleados por cédula.
 
 ---
 
@@ -77,25 +78,25 @@ El procesamiento se divide en cuatro operaciones principales:
 
 El salario base mensual se divide entre 190.64 horas laborables:
 
-\[
+$$
 H = \frac{SalarioBase}{190.64}
-\]
+$$
 
 **2. Pago de horas extras**
 
 Las horas extraordinarias reciben un recargo del 35 %:
 
-\[
+$$
 HE = H \times 1.35 \times HorasExtras
-\]
+$$
 
 **3. Salario bruto**
 
 Se suman el salario base, el pago de horas extras y las bonificaciones:
 
-\[
+$$
 SB = SalarioBase + HE + Bonos
-\]
+$$
 
 **4. Deducciones y salario neto**
 
@@ -107,19 +108,19 @@ Cuando el empleado tiene el seguro activado, se aplica una deducción del 5.91 %
 | Administradora de Fondos de Pensiones (AFP) | 2.87 % |
 | **Total** | **5.91 %** |
 
-\[
+$$
 D =
 \begin{cases}
 SB \times 0.0591 & \text{Si tiene seguro}\\
 0 & \text{Si no tiene seguro}
 \end{cases}
-\]
+$$
 
 Finalmente:
 
-\[
+$$
 \boxed{SalarioNeto = SB - D}
-\]
+$$
 
 El resultado se presenta mediante un resumen que contiene los datos del empleado, sus ingresos adicionales, las deducciones y el monto neto a pagar.
 
@@ -150,6 +151,7 @@ LASKT System utiliza una arquitectura modular organizada en cuatro capas, cada u
                  ┌─────────▼─────────┐
                  │       MODEL       │
                  │ Empleado / Nómina │
+                 │    Relaciones     │
                  └───────────────────┘
 
                  ┌───────────────────┐
@@ -162,8 +164,8 @@ LASKT System utiliza una arquitectura modular organizada en cuatro capas, cada u
 
 | Paquete | Responsabilidad |
 |---|---|
-| `model` | Representación de los empleados y cálculos de nómina. |
-| `service` | Gestión de empleados y operaciones de acceso a datos. |
+| `model` | Representación de los empleados, asignación de departamentos y cálculos de nómina. |
+| `service` | Gestión de empleados y operaciones transaccionales de acceso a datos. |
 | `utils` | Conexión a la base de datos y validaciones reutilizables. |
 | `view` | Interfaces gráficas e interacción con el usuario. |
 
@@ -171,17 +173,18 @@ LASKT System utiliza una arquitectura modular organizada en cuatro capas, cada u
 
 **Model (`model/`)**
 
-- `Empleado.java`: representa a cada colaborador y almacena sus datos personales y salariales.
+- `Empleado.java`: representa a cada colaborador, almacena sus datos personales y salariales e incorpora `Relaciones` por composición.
 - `Nomina.java`: contiene los métodos responsables del cálculo de horas extras, salario bruto, deducciones y salario neto.
+- `Relaciones.java`: representa el departamento mediante `id` y `nombre`, e implementa `asignarPorCargo(String cargo)` para clasificar automáticamente al empleado en una de las 5 áreas organizacionales (`1` al `5`) según su puesto.
 
 **Service (`service/`)**
 
-- `NominaService.java`: centraliza las operaciones de consulta, registro y eliminación de empleados, además del cálculo de la nómina general.
+- `NominaService.java`: centraliza la carga asíncrona con reintentos, el registro transaccional en `Empleados` y `Detalle_Nomina`, la eliminación por cédula y el cálculo de la nómina general.
 
 **Utils (`utils/`)**
 
 - `ConexionBD.java`: administra la conexión JDBC con Azure SQL Database.
-- `Validaciones.java`: contiene funciones de normalización de texto y un `DocumentFilter` para el formato automático de la cédula dominicana.
+- `Validaciones.java`: contiene funciones de normalización de texto y un `DocumentFilter` para el formato automático de la cédula dominicana (`000-0000000-0`).
 
 **View (`view/`)**
 
@@ -198,11 +201,11 @@ LASKT System utiliza una arquitectura modular organizada en cuatro capas, cada u
 
 La persistencia utiliza **Microsoft Azure SQL Database** como sistema de gestión de bases de datos relacional.
 
-El modelo implementado utiliza dos entidades principales:
+El modelo implementado utiliza tres entidades principales:
 
 ### Departamentos
 
-Almacena los departamentos de la organización y permite agrupar a los empleados.
+Almacena las 5 áreas organizacionales de la empresa (`1`: *Administración y Finanzas*, `2`: *Ventas y Atención*, `3`: *Operaciones y Tecnología*, `4`: *Servicios Generales* y `5`: *General*) y permite agrupar a los empleados. Su representación en Java es `Relaciones`, que asigna el identificador automáticamente según el cargo mediante `asignarPorCargo(cargo)`.
 
 ### Empleados
 
@@ -211,23 +214,25 @@ Contiene la información personal y salarial de cada colaborador.
 | Campo | Descripción |
 |---|---|
 | `Id_Empleado` | Identificador único del empleado (PK). |
-| `Id_Departamento` | Departamento al que pertenece (FK). |
+| `Id_Departamento` | Departamento asignado automáticamente según el cargo (FK, IDs `1` al `5`). |
 | `Nombre` | Nombre completo. |
 | `Cedula` | Cédula de identidad dominicana. |
 | `Cargo` | Puesto de trabajo. |
 | `Salario_Base` | Salario mensual base. |
 | `Horas_Extras` | Cantidad de horas extraordinarias. |
 | `Bonos` | Monto de bonificaciones. |
-| `Seguro` | Monto de la deducción calculada. |
+| `Seguro` | Indicador numérico (`1` si está activo, `0` si no; se interpreta como activo cuando es mayor que cero). |
 
 La relación entre departamentos y empleados es de uno a muchos: un departamento puede tener varios empleados, pero cada empleado pertenece a un departamento.
 
-La nómina se calcula dinámicamente mediante Java y no se almacena como una entidad independiente en la implementación actual.
+### Detalle_Nomina
+
+Almacena el desglose salarial calculado por `Nomina` al momento de registrar al empleado (`Id_Empleado`, `Nombre_Empleado`, `Pago_hora_extras`, `Salario_Bruto`, `Deduciones` y `Salario_neto`) dentro de la misma transacción SQL.
 
 ### Operaciones de persistencia
 
-- **SELECT:** recuperación de los empleados registrados al iniciar el sistema.
-- **INSERT:** almacenamiento de nuevos empleados.
+- **SELECT:** carga asíncrona de empleados al iniciar el sistema (hasta tres intentos); reconstruye el departamento en Java a partir del cargo.
+- **INSERT:** inserción transaccional en `Empleados`, obtención del `Id_Empleado` generado y registro del cálculo salarial en `Detalle_Nomina` con `commit`.
 - **DELETE:** eliminación de empleados mediante su número de cédula.
 
 ---
@@ -331,7 +336,7 @@ Configura los parámetros de conexión correspondientes a tu instancia de Azure 
 
 **Importante:** La versión documentada utiliza credenciales definidas directamente en el código. Antes de ejecutar el proyecto con tus propios datos, configura las credenciales localmente. No publiques contraseñas ni información de acceso en GitHub.
 
-La base de datos debe disponer de las tablas `Departamentos` y `Empleados`, y de un departamento con identificador `1`, utilizado por el servicio al registrar empleados.
+La base de datos debe disponer de las tablas `Departamentos`, `Empleados` y `Detalle_Nomina`, y tener registrados en `Departamentos` los 5 departamentos correspondientes a los identificadores `1` al `5` asignados automáticamente por `Relaciones.asignarPorCargo(cargo)`.
 
 ### 4. Ejecutar la aplicación
 
@@ -377,11 +382,12 @@ El diseño utiliza una resolución de referencia de 1920 × 1080 píxeles y adap
 El proyecto constituye una implementación funcional de los procesos básicos de gestión de empleados y cálculo de nómina. Sin embargo, existen oportunidades de ampliación:
 
 - Externalizar las credenciales de conexión mediante variables de entorno.
-- Incorporar gestión de departamentos desde la interfaz.
-- Implementar un historial de nóminas por período.
+- Incorporar gestión de departamentos desde la interfaz y permitir seleccionar manualmente una excepción si se requiere.
+- Recuperar `Id_Departamento` directamente en la consulta `SELECT` de carga y mostrar el departamento en la tabla de empleados.
+- Implementar un historial de nóminas por período en `Detalle_Nomina`.
 - Generar comprobantes individuales y reportes generales en PDF.
 - Incorporar autenticación de usuarios y permisos por roles.
-- Completar el filtrado de la búsqueda de empleados.
+- Completar el filtrado de la búsqueda de empleados en `EmpleadosFrame`.
 - Implementar los topes de cotización de la TSS.
 - Añadir el cálculo del Impuesto Sobre la Renta (ISR).
 
@@ -403,16 +409,16 @@ Estas mejoras permitirían evolucionar el proyecto hacia un sistema de gestión 
 
 ### Equipo de desarrollo
 
-Proyecto desarrollado colaborativamente por estudiantes de la escuela de informatica de la Universidad Autónoma de Santo Domingo.
+Proyecto desarrollado colaborativamente por estudiantes de la Escuela de Informática de la Universidad Autónoma de Santo Domingo.
 
 ### Autoría y contribuciones
 
-- Phillips Enmanuel Cordero Celestin
-- Jose Vargas 
-- Luis Manuel Carreno Ruiz
+- Philips Emmanuel Cordero Celestin
+- José Antonio Vargas Rivas
+- Luis Manuel Carreño Ruiz
 - Bryan Yovanny Kellys Pozo
-- Daury Hernandez
-- Merkidez Genao Padilla
+- Daury Hernández Gómez
+- Merkides Genao Padilla
 
 ---
 
